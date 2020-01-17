@@ -61,10 +61,14 @@ In the cell below:
 
 
 ```python
-categories = None
-newsgroups_train = None
-newsgroups_test = None
+categories = ['alt.atheism', 'comp.windows.x', 'rec.sport.hockey', 'sci.crypt', 'talk.politics.guns']
+newsgroups_train = fetch_20newsgroups(subset= 'train', categories=categories, remove=('headers', 'footers', 'quotes'))
+newsgroups_test = fetch_20newsgroups(subset= 'test', categories=categories, remove=('headers', 'footers', 'quotes'))
 ```
+
+    Downloading 20news dataset. This may take a few minutes.
+    Downloading dataset from https://ndownloader.figshare.com/files/5975967 (14 MB)
+    
 
 Great! Let's break apart the data and the labels, and then inspect the class names to see what the actual newsgroups are.
 
@@ -77,11 +81,22 @@ In the cell below:
 
 
 ```python
-data = None
-target = None
-label_names = None
+data = newsgroups_train.data
+target = newsgroups_train.target
+label_names = newsgroups_train.target_names
 label_names
 ```
+
+
+
+
+    ['alt.atheism',
+     'comp.windows.x',
+     'rec.sport.hockey',
+     'sci.crypt',
+     'talk.politics.guns']
+
+
 
 Finally, let's check the shape of `data` to see what our data looks like. We can do this by checking the `.shape` attribute of `newsgroups_train.filenames`.
 
@@ -89,7 +104,7 @@ Do this now in the cell below.
 
 
 ```python
-# Your code here
+newsgroups_train.filenames.shape
 ```
 
 
@@ -126,8 +141,9 @@ In the cell below:
 
 
 ```python
-stopwords_list = None
-
+stopwords_list = stopwords.words('english')
+stopwords_list += list(string.punctuation)
+stopwords_list += ["''", '""', '...', '``']
 ```
 
 Great! We'll leave these alone for now, until we're ready to remove stop words after the tokenization step. 
@@ -143,7 +159,9 @@ In the cell below, complete the `process_article()` function. This function shou
 
 ```python
 def process_article(article):
-    pass  
+    token = nltk.word_tokenize(article)
+    words_stopped = [word.lower() for word in token if word.lower() not in stopwords_list]
+    return words_stopped  
 ```
 
 Now that we have this function, let's go ahead and preprocess our data, and then move into exploring our dataset. 
@@ -156,7 +174,7 @@ In the cell below:
 
 
 ```python
-processed_data = None
+processed_data = list(map(process_article, data))
 ```
 
 Great. Now, let's inspect the first article in `processed_data` to see how it looks. 
@@ -165,8 +183,24 @@ Do this now in the cell below.
 
 
 ```python
-processed_data[0]
+processed_data[0][:10]
 ```
+
+
+
+
+    ['note',
+     'trial',
+     'updates',
+     'summarized',
+     'reports',
+     '_idaho',
+     'statesman_',
+     'local',
+     'nbc',
+     'affiliate']
+
+
 
 Now, let's move onto exploring the dataset a bit more. Let's start by getting the total vocabulary size of the training dataset. We can do this by creating a `set` object and then using it's `.update()` method to iteratively add each article. Since it's a set, it will only contain unique words, with no duplicates. 
 
@@ -178,9 +212,18 @@ In the cell below:
 
 
 ```python
-total_vocab = None
-
+total_vocab = set()
+for comment in processed_data:
+    total_vocab.update(comment)
+len(total_vocab)  
 ```
+
+
+
+
+    46990
+
+
 
 ### Exploring Data With Frequency Distributions
 
@@ -199,14 +242,72 @@ In the cell below:
 
 
 ```python
-articles_concat = None
+articles_concat = []
+for article in processed_data:
+    articles_concat += article
 ```
 
 
 ```python
-articles_freqdist = None
-
+articles_freqdist = FreqDist(articles_concat)
+articles_freqdist.most_common(50)
 ```
+
+
+
+
+    [('--', 29501),
+     ('x', 4840),
+     ("'s", 3203),
+     ("n't", 2933),
+     ('1', 2529),
+     ('would', 1985),
+     ('0', 1975),
+     ('one', 1758),
+     ('2', 1664),
+     ('people', 1243),
+     ('use', 1146),
+     ('get', 1068),
+     ('like', 1036),
+     ('file', 1024),
+     ('3', 1005),
+     ('also', 875),
+     ('key', 869),
+     ('4', 864),
+     ('could', 853),
+     ('know', 814),
+     ('think', 814),
+     ('time', 781),
+     ('may', 729),
+     ('even', 711),
+     ('new', 706),
+     ('first', 678),
+     ('*/', 674),
+     ('system', 673),
+     ('5', 673),
+     ('well', 670),
+     ('information', 646),
+     ('make', 644),
+     ('right', 638),
+     ('see', 636),
+     ('many', 634),
+     ('two', 633),
+     ('/*', 611),
+     ('good', 608),
+     ('used', 600),
+     ('7', 593),
+     ('government', 588),
+     ('way', 572),
+     ('available', 568),
+     ('window', 568),
+     ("'m", 562),
+     ('db', 553),
+     ('much', 540),
+     ('encryption', 537),
+     ('6', 537),
+     ('using', 527)]
+
+
 
 At first glance, none of these words seem very informative -- for most of the words represented here, it would be tough to guess if a given word is used equally among all five classes, or is disproportionately represented among a single class. This makes sense, because this frequency distribution represents all the classes combined. This tells us that these words are probably the least important, as they are most likely words that are used across multiple classes, thereby providing our model with little actual signal as to what class they belong to. This tells us that we probably want to focus on words that appear heavily in articles from a given class, but rarely appear in articles from other classes. You may recall from previous lessons that this is exactly where **_TF-IDF Vectorization_** really shines!
 
@@ -227,22 +328,22 @@ This means that we need to:
 
 
 ```python
-# Import TfidfVectorizer
+from sklearn.feature_extraction.text import TfidfVectorizer
 ```
 
 
 ```python
-vectorizer = None
+vectorizer = TfidfVectorizer()
 ```
 
 
 ```python
-tf_idf_data_train = None
+tf_idf_data_train = vectorizer.fit_transform(data)
 ```
 
 
 ```python
-tf_idf_data_test = None
+tf_idf_data_test = vectorizer.transform(newsgroups_test.data)
 ```
 
 ### Modeling Our Data
@@ -253,7 +354,7 @@ In the cell below, get the shape of `tf_idf_data`.
 
 
 ```python
-# Your code here
+tf_idf_data_train.shape
 ```
 
 
@@ -276,6 +377,10 @@ percent_sparse = 1 - (non_zero_cols / float(tf_idf_data_train.shape[1]))
 print('Percentage of columns containing 0: {}'.format(percent_sparse))
 ```
 
+    Average Number of Non-Zero Elements in Vectorized Articles: 107.28038379530916
+    Percentage of columns containing 0: 0.9970706028126451
+    
+
 As we can see from the output above, the average vectorized article contains 107 non-zero columns. This means that 99.7% of each vector is actually zeroes! This is one reason why it's best not to create your own vectorizers, and rely on professional packages such as scikit-learn and NLTK instead -- they contain many speed and memory optimizations specifically for dealing with sparse vectors. This way, we aren't wasting a giant chunk of memory on a vectorized dataset that only has valid information in 0.3% of it. 
 
 Now that we've vectorized our dataset, let's create some models and fit them to our vectorized training data. 
@@ -289,30 +394,30 @@ In the cell below:
 
 
 ```python
-nb_classifier = None
-rf_classifier = None
+nb_classifier = MultinomialNB()
+rf_classifier = RandomForestClassifier(n_estimators=100)
 ```
 
 
 ```python
-
-nb_train_preds = None
-nb_test_preds = None
+nb_classifier.fit(tf_idf_data_train, target)
+nb_train_preds = nb_classifier.predict(tf_idf_data_train)
+nb_test_preds = nb_classifier.predict(tf_idf_data_test)
 ```
 
 
 ```python
-
-rf_train_preds = None
-rf_test_preds = None
+rf_classifier.fit(tf_idf_data_train, target)
+rf_train_preds = rf_classifier.predict(tf_idf_data_train)
+rf_test_preds = rf_classifier.predict(tf_idf_data_test)
 ```
 
 
 ```python
-nb_train_score = None
-nb_test_score = None
-rf_train_score = None
-rf_test_score = None
+nb_train_score = accuracy_score(nb_train_preds, target)
+nb_test_score = accuracy_score(nb_test_preds, newsgroups_test.target)
+rf_train_score = accuracy_score(rf_train_preds, target)
+rf_test_score = accuracy_score(rf_test_preds, newsgroups_test.target)
 
 print("Multinomial Naive Bayes")
 print("Training Accuracy: {:.4} \t\t Testing Accuracy: {:.4}".format(nb_train_score, nb_test_score))
@@ -323,17 +428,35 @@ print('Random Forest')
 print("Training Accuracy: {:.4} \t\t Testing Accuracy: {:.4}".format(rf_train_score, rf_test_score))
 ```
 
+    Multinomial Naive Bayes
+    Training Accuracy: 0.9531 		 Testing Accuracy: 0.8126
+    
+    ----------------------------------------------------------------------
+    
+    Random Forest
+    Training Accuracy: 0.9851 		 Testing Accuracy: 0.7896
+    
+
 ### Interpreting Results
 
 **_Question:_** Interpret the results seen above. How well did the models do? How do they compare to random guessing? How would you describe the quality of the model fit?
 
 Write your answer below:
 
+"""This isn't very good. Big drop in accuracy with test validation because of over fitting"""
 
-```python
-# Your answer here
-```
+"""
+The models did well. Since there are five classes, the naive accuracy rate (random guessing) would be 20%. 
+With scores of 78 and 81 percent, the models did much better than random guessing. 
+There is some evidence of overfitting, as the scores on the training set are much higher than those of the test set. 
+This suggests that the models' fits could be improved with some tuning.
+"""
 
 # Summary
 
 In this lab, we used our NLP skills to clean, preprocess, explore, and fit models to text data for classification. This wasn't easy -- great job!!
+
+
+```python
+!jupyter nbconvert --tomark
+```
